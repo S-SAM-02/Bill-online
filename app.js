@@ -272,7 +272,7 @@ function parseOCR(text){
       let hh=Number(m[4]); const ap=(m[6]||'').toUpperCase();
       if(ap==='PM' && hh<12)hh+=12;
       if(ap==='AM' && hh===12)hh=0;
-      $('paymentDateTime').value=\`${y.toString().padStart(4,'0')}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${hh.toString().padStart(2,'0')}:${m[5]}\`;
+      $('paymentDateTime').value=`${y.toString().padStart(4,'0')}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${hh.toString().padStart(2,'0')}:${m[5]}`;
     }
   }
 
@@ -297,7 +297,7 @@ async function ocrPdf(file, worker, progressLabel){
   const chunks=[];
   const maxPages=Math.min(pdf.numPages,20);
   for(let pageNo=1;pageNo<=maxPages;pageNo++){
-    $('ocrStatus').textContent=\`${progressLabel} — PDF page ${pageNo}/${maxPages}\`;
+    $('ocrStatus').textContent=`${progressLabel} — PDF page ${pageNo}/${maxPages}`;
     const page=await pdf.getPage(pageNo);
     const textContent=await page.getTextContent();
     const directText=textContent.items.map(item=>item.str||'').join(' ').trim();
@@ -315,7 +315,7 @@ async function ocrPdf(file, worker, progressLabel){
     chunks.push(result.data.text||'');
     canvas.width=1; canvas.height=1;
   }
-  if(pdf.numPages>20) chunks.push(\`[Only first 20 pages processed from ${file.name}]\`);
+  if(pdf.numPages>20) chunks.push(`[Only first 20 pages processed from ${file.name}]`);
   return chunks.join('\n');
 }
 
@@ -324,7 +324,7 @@ $('screenshotInput').addEventListener('change',e=>{
   selectedFiles=Array.from(e.target.files||[]);
   $('ocrBtn').disabled=!selectedFiles.length;
   $('ocrStatus').textContent=selectedFiles.length
-    ? \`${selectedFiles.length} file(s) selected — images and PDFs supported\`
+    ? `${selectedFiles.length} file(s) selected — images and PDFs supported`
     : 'No payment files selected';
 });
 
@@ -345,7 +345,7 @@ $('ocrBtn').addEventListener('click',async()=>{
     worker=await Tesseract.createWorker('eng',1,{
       logger:m=>{
         if(m.status==='recognizing text' && typeof m.progress==='number'){
-          $('ocrStatus').textContent=\`Reading payment file… ${Math.round(m.progress*100)}%\`;
+          $('ocrStatus').textContent=`Reading payment file… ${Math.round(m.progress*100)}%`;
         }
       }
     });
@@ -354,7 +354,7 @@ $('ocrBtn').addEventListener('click',async()=>{
     let fileIndex=0;
     for(const file of selectedFiles){
       fileIndex++;
-      const label=\`File ${fileIndex}/${selectedFiles.length}: ${file.name}\`;
+      const label=`File ${fileIndex}/${selectedFiles.length}: ${file.name}`;
       if(file.type==='application/pdf' || /\.pdf$/i.test(file.name)){
         allText.push(await ocrPdf(file,worker,label));
       }else if(file.type.startsWith('image/')){
@@ -364,7 +364,7 @@ $('ocrBtn').addEventListener('click',async()=>{
     const combined=allText.filter(Boolean).join('\n\n');
     if(!combined.trim())throw new Error('No readable text found in the uploaded files');
     const result=parseOCR(combined);
-    $('ocrStatus').textContent=\`${selectedFiles.length} file(s) processed — ${result.matched} bill fields updated. Review and edit them before generating.\`;
+    $('ocrStatus').textContent=`${selectedFiles.length} file(s) processed — ${result.matched} bill fields updated. Review and edit them before generating.`;
     toast(result.matched ? 'Uploaded payment files updated the bill' : 'Files processed, but no matching fields were found');
   }catch(e){
     console.error(e);
