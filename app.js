@@ -2,18 +2,6 @@ const $ = id => document.getElementById(id);
 
 const fields = ['invoiceNo','invoiceDate','dueDate','clientName','clientUpi','project','service','paymentMethod','projectTotal','currentPayment','previousReceived','utr','transactionId','paymentDateTime','receivedIn','payerUpi','debitedFrom','recipient','recipientUpi','notes'];
 
-const demo = {
-  invoiceNo:'SAM-INV-2026-019', invoiceDate:'2026-09-19', dueDate:'2026-09-19',
-  clientName:'Anuradha S Raju', clientUpi:'ashaara203@ibl', project:'CALISTA VITA',
-  service:'Custom Service Marketplace Website Development', paymentMethod:'UPI / PhonePe',
-  projectTotal:0, currentPayment:1000, previousReceived:0,
-  utr:'643620717122', transactionId:'T2609120929453063213453',
-  paymentDateTime:'2026-09-19T13:44', receivedIn:'Canara Bank •••• 6599',
-  payerUpi:'ashaara203@ibl', debitedFrom:'Account ending 25',
-  recipient:'SANTHOSH S', recipientUpi:'santhosh.410@superyes',
-  notes:'This is a payment received toward the CALISTA VITA project.\nPayment was received through UPI; sender and recipient details are recorded above.\nThis invoice is computer generated and does not require a signature.'
-};
-
 const HISTORY_KEY = 'samBillHistory';
 const DRAFT_KEY = 'samBillDraft';
 const SAVED_KEY = 'samBillSaved';
@@ -123,19 +111,20 @@ function saveData(){
   localStorage.setItem(HISTORY_KEY,JSON.stringify(history));
   renderHistory(); toast('Bill saved to the local dataset');
 }
+function blankBill(){
+  const d={};
+  fields.forEach(f=>d[f]='');
+  return d;
+}
 function clearNew(){
-  localStorage.setItem(SEQ_KEY,String(Number(localStorage.getItem(SEQ_KEY)||20)+1));
-  const d={...demo,invoiceNo:nextInvoice(),invoiceDate:today(),dueDate:today(),currentPayment:0,previousReceived:0,projectTotal:0,utr:'',transactionId:'',paymentDateTime:'',receivedIn:'',payerUpi:'',debitedFrom:'',notes:'This is a payment received toward the project.\nPayment was received through UPI; sender and recipient details are recorded above.\nThis invoice is computer generated and does not require a signature.'};
   localStorage.removeItem(SAVED_KEY);
   localStorage.removeItem(DRAFT_KEY);
-  setData(d);
+  setData(blankBill());
   localStorage.removeItem(DRAFT_KEY);
-  toast('New bill ready — previous draft cleared');
+  $('invoiceNo').focus();
+  toast('New bill cleared — enter every detail manually or upload payment files');
 }
-function loadExample(){
-  setData({...demo});
-  toast('Reference example loaded');
-}
+
 function loadSaved(index){
   const history=JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]');
   if(history[index]){setData(history[index]);toast('Saved bill loaded');}
@@ -192,94 +181,103 @@ async function pdf(){
 function cleanOCRText(text){
   return String(text||'')
     .replace(/\r/g,'')
-    .replace(/[|]/g,'I')
     .replace(/[“”]/g,'"')
     .replace(/[‘’]/g,"'")
     .replace(/\u00a0/g,' ')
     .replace(/[ \t]+/g,' ')
     .trim();
 }
-
-function firstMatch(text, patterns){
-  for(const re of patterns){
-    const m=text.match(re);
-    if(m && m[1]) return m[1].trim();
-  }
-  return '';
-}
-
 function normalizeAmount(value){
   const n=String(value||'').replace(/[₹Rs.INR\s,]/gi,'').replace(/[^0-9.]/g,'');
   const v=Number(n);
   return Number.isFinite(v) ? v : 0;
 }
-
+function valueAfterLabel(lines, patterns){
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i].trim();
+    for(const re of patterns){
+      const m=line.match(re);
+      if(m && m[1] && m[1].trim()) return m[1].trim();
+      if(re.test(line) && lines[i+1] && lines[i+1].trim()) return lines[i+1].trim();
+    }
+  }
+  return '';
+}
 function parseOCR(text){
   const raw=cleanOCRText(text);
   const lines=raw.split(/\n+/).map(s=>s.trim()).filter(Boolean);
-  const flat=lines.join(' ');
 
-  const amountText=firstMatch(flat,[
-    /(?:amount\s*(?:received|paid|sent)|payment\s*(?:received|amount)|total\s*amount\s*received|paid\s*amount|transaction\s*amount)\s*[:\-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i,
-    /(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d{1,2})?)/i
+  // Only fill a field when the OCR text contains a recognizable label.
+  // This prevents unrelated text from being guessed into bill fields.
+  const amountText=valueAfterLabel(lines,[
+    /(?:amount|payment|transaction)\s*(?:received|paid|sent|amount)?\s*[:\-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i,
+    /(?:total\s*amount|paid\s*amount)\s*[:\-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i
   ]);
-  const utr=firstMatch(flat,[
-    /(?:upi\s*reference|upi\s*ref(?:erence)?|utr|rrn|reference\s*(?:no|number)?)\s*[:#\-]?\s*([A-Z0-9][A-Z0-9\-]{5,})/i
+  const utr=valueAfterLabel(lines,[
+    /(?:upi\s*reference|upi\s*ref(?:erence)?|utr|rrn|reference\s*(?:no|number))\s*[:#\-]?\s*([A-Z0-9][A-Z0-9\-]{5,})/i
   ]);
-  const txn=firstMatch(flat,[
+  const txn=valueAfterLabel(lines,[
     /(?:phonepe\s*)?(?:transaction\s*(?:id|number)|txn\s*(?:id|no|number))\s*[:#\-]?\s*([A-Z0-9][A-Z0-9\-]{8,})/i
   ]);
-  const upis=[...flat.matchAll(/\b[A-Z0-9][A-Z0-9._-]{1,}@[A-Z0-9._-]{2,}\b/gi)].map(m=>m[0]);
-  const payerUpi=firstMatch(flat,[
-    /(?:payer|sender|debited\s*(?:from)?|from)\s*(?:upi\s*)?(?:id)?\s*[:#\-]?\s*([A-Z0-9][A-Z0-9._-]{1,}@[A-Z0-9._-]{2,})/i
-  ]) || upis[0] || '';
-  const recipientUpi=firstMatch(flat,[
+  const payerUpi=valueAfterLabel(lines,[
+    /(?:payer|sender)\s*(?:upi\s*)?(?:id)?\s*[:#\-]?\s*([A-Z0-9][A-Z0-9._-]{1,}@[A-Z0-9._-]{2,})/i,
+    /(?:from|debited\s*from)\s*(?:upi\s*)?(?:id)?\s*[:#\-]?\s*([A-Z0-9][A-Z0-9._-]{1,}@[A-Z0-9._-]{2,})/i
+  ]);
+  const recipientUpi=valueAfterLabel(lines,[
     /(?:recipient|receiver|paid\s*to|credited\s*to)\s*(?:upi\s*)?(?:id)?\s*[:#\-]?\s*([A-Z0-9][A-Z0-9._-]{1,}@[A-Z0-9._-]{2,})/i
-  ]) || upis[1] || '';
-
-  const client=firstMatch(flat,[
-    /(?:payment\s*received\s*from|received\s*from|payer\s*name|sender\s*name|client\s*name)\s*[:#\-]?\s*([A-Za-z][A-Za-z .'-]{2,})/i
   ]);
-  const paidTo=firstMatch(flat,[
-    /(?:recipient\s*\/?\s*paid\s*to|recipient\s*name|receiver\s*name|paid\s*to|credited\s*to)\s*[:#\-]?\s*([A-Za-z][A-Za-z .'-]{2,})/i
+  const client=valueAfterLabel(lines,[
+    /(?:payment\s*received\s*from|payer\s*name|sender\s*name|client\s*name)\s*[:#\-]?\s*(.+)$/i
   ]);
-  const receivedIn=firstMatch(flat,[
-    /(?:received\s*in|credited\s*in|credited\s*to\s*(?:bank|account)?|bank\s*account)\s*[:#\-]?\s*([A-Za-z0-9][A-Za-z0-9 .•*#()_-]{2,})/i
+  const paidTo=valueAfterLabel(lines,[
+    /(?:recipient\s*name|receiver\s*name|recipient|paid\s*to|credited\s*to)\s*[:#\-]?\s*(.+)$/i
   ]);
-  const debitedFrom=firstMatch(flat,[
-    /(?:debited\s*from|debit(?:ed)?\s*account|paid\s*from)\s*[:#\-]?\s*([A-Za-z0-9][A-Za-z0-9 .•*#()_-]{2,})/i
+  const receivedIn=valueAfterLabel(lines,[
+    /(?:received\s*in|credited\s*in|bank\s*account|credited\s*to\s*bank\s*account)\s*[:#\-]?\s*(.+)$/i
   ]);
-  const dateTime=firstMatch(flat,[
-    /(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\s+(?:at\s+)?\d{1,2}:\d{2}(?:\s*[AP]M)?)/i,
-    /(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}\s+(?:at\s+)?\d{1,2}:\d{2}(?:\s*[AP]M)?)/i
+  const debitedFrom=valueAfterLabel(lines,[
+    /(?:debited\s*from|debit(?:ed)?\s*account|paid\s*from)\s*[:#\-]?\s*(.+)$/i
+  ]);
+  const dateTime=valueAfterLabel(lines,[
+    /(?:date\s*(?:&|and)?\s*time|payment\s*date|transaction\s*date|paid\s*on)\s*[:#\-]?\s*(.+)$/i
   ]);
 
   if(amountText) $('currentPayment').value=normalizeAmount(amountText);
-  if(utr) $('utr').value=utr.replace(/[^A-Za-z0-9-]/g,'');
-  if(txn) $('transactionId').value=txn.replace(/[^A-Za-z0-9-]/g,'');
-  if(payerUpi) $('payerUpi').value=payerUpi;
-  if(recipientUpi) $('recipientUpi').value=recipientUpi;
-  if(client) $('clientName').value=client.replace(/\s{2,}/g,' ').trim();
-  if(paidTo) $('recipient').value=paidTo.replace(/\s{2,}/g,' ').trim();
+  if(utr) $('utr').value=utr.trim();
+  if(txn) $('transactionId').value=txn.trim();
+  if(payerUpi) $('payerUpi').value=payerUpi.trim();
+  if(recipientUpi) $('recipientUpi').value=recipientUpi.trim();
+  if(client) $('clientName').value=client.trim();
+  if(paidTo) $('recipient').value=paidTo.trim();
   if(receivedIn) $('receivedIn').value=receivedIn.trim();
   if(debitedFrom) $('debitedFrom').value=debitedFrom.trim();
 
   if(dateTime){
-    const normalized=dateTime.replace(/\bat\b/i,' ').replace(/\s+/g,' ').trim();
-    const m=normalized.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\s+(\d{1,2}):(\d{2})\s*([AP]M)?/i);
+    const rawDate=dateTime.replace(/\bat\b/i,' ').replace(/\s+/g,' ').trim();
+    let m=rawDate.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\s+(\d{1,2}):(\d{2})\s*([AP]M)?/i);
     if(m){
       let y=Number(m[3]); if(y<100)y+=2000;
       let hh=Number(m[4]); const ap=(m[6]||'').toUpperCase();
       if(ap==='PM' && hh<12)hh+=12;
       if(ap==='AM' && hh===12)hh=0;
-      $('paymentDateTime').value=`${y.toString().padStart(4,'0')}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${hh.toString().padStart(2,'0')}:${m[5]}`;
+      $('paymentDateTime').value=\`${y.toString().padStart(4,'0')}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${hh.toString().padStart(2,'0')}:${m[5]}\`;
+    }else{
+      m=rawDate.match(/(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})\s+(\d{1,2}):(\d{2})\s*([AP]M)?/i);
+      if(m){
+        const months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+        const mo=months.indexOf(m[2].slice(0,3).toLowerCase())+1;
+        let hh=Number(m[4]); const ap=(m[6]||'').toUpperCase();
+        if(ap==='PM' && hh<12)hh+=12;
+        if(ap==='AM' && hh===12)hh=0;
+        if(mo>0)$('paymentDateTime').value=\`${m[3]}-${String(mo).padStart(2,'0')}-${m[1].padStart(2,'0')}T${String(hh).padStart(2,'0')}:${m[5]}\`;
+      }
     }
   }
 
   render();
   return {
     amount:amountText ? normalizeAmount(amountText) : 0,
-    utr, txn, payerUpi, recipientUpi, client, paidTo, receivedIn, debitedFrom, dateTime,
+    utr,txn,payerUpi,recipientUpi,client,paidTo,receivedIn,debitedFrom,dateTime,
     matched:[amountText,utr,txn,payerUpi,recipientUpi,client,paidTo,receivedIn,debitedFrom,dateTime].filter(Boolean).length
   };
 }
@@ -381,16 +379,14 @@ fields.forEach(f=>$(f).addEventListener('input',render));
 $('generateBtn').addEventListener('click',()=>{if(validateBill()){render();toast('Bill generated — review the A4 preview before saving');}});
 $('saveBtn').addEventListener('click',saveData);
 $('clearBtn').addEventListener('click',clearNew);
-$('loadDemoBtn').addEventListener('click',loadExample);
 $('downloadBtn').addEventListener('click',pdf);
 $('printBtn').addEventListener('click',()=>{if(validateBill()){render();window.print();}});
 installHistoryPanel();
 
 (function init(){
-  const saved=localStorage.getItem(SAVED_KEY);
-  const draft=localStorage.getItem(DRAFT_KEY);
-  if(saved)setData(JSON.parse(saved));
-  else if(draft)setData(JSON.parse(draft));
-  else setData({...demo,invoiceNo:nextInvoice(),invoiceDate:today(),dueDate:today(),currentPayment:0,previousReceived:0,projectTotal:0,utr:'',transactionId:'',paymentDateTime:'',receivedIn:'',payerUpi:'',debitedFrom:''});
+  // Always open as a completely blank new bill.
+  // Saved bills remain available only in the Saved Bills Dataset panel.
+  localStorage.removeItem(DRAFT_KEY);
+  setData(blankBill());
   renderHistory();
 })();
