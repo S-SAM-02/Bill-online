@@ -317,6 +317,128 @@ async function ocrPdf(file, worker, progressLabel){
   return chunks.join('\n');
 }
 
+
+async function fileToCompressedImage(file){
+  if(file.type.startsWith('image/')){
+    const src=await new Promise((resolve,reject)=>{
+      const r=new FileReader();
+      r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file);
+    });
+    const img=await new Promise((resolve,reject)=>{
+      const im=new Image(); im.onload=()=>resolve(im); im.onerror=reject; im.src=src;
+    });
+    const max=1800, scale=Math.min(1,max/img.width,max/img.height);
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(img.width*scale));
+    canvas.height=Math.max(1,Math.round(img.height*scale));
+    const ctx=canvas.getContext('2d');
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    return canvas.toDataURL('image/jpeg',0.8);
+  }
+  throw new Error('Unsupported image file');
+}
+
+async function pdfToAiImages(file){
+  if(typeof pdfjsLib==='undefined') throw new Error('PDF engine unavailable');
+  const data=new Uint8Array(await file.arrayBuffer());
+  const pdf=await pdfjsLib.getDocument({data}).promise;
+  const images=[];
+  const maxPages=Math.min(pdf.numPages,6);
+  for(let pageNo=1;pageNo<=maxPages;pageNo++){
+    $('ocrStatus').textContent='Preparing '+file.name+' — PDF page '+pageNo+'/'+maxPages+' for AI';
+    const page=await pdf.getPage(pageNo);
+    const viewport=page.getViewport({scale:1.5});
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.floor(viewport.width);
+    canvas.height=Math.floor(viewport.height);
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    await page.render({canvasContext:ctx,viewport}).promise;
+    images.push(canvas.toDataURL('image/jpeg',0.78));
+    canvas.width=1; canvas.height=1;
+  }
+  return images;
+}
+
+function applyAiFields(result){
+  const map={
+    invoiceNo:'invoiceNo', invoiceDate:'invoiceDate', dueDate:'dueDate',
+    clientName:'clientName', clientUpi:'clientUpi', project:'project',
+    service:'service', paymentMethod:'paymentMethod', projectTotal:'projectTotal',
+    currentPayment:'currentPayment', previousReceived:'previousReceived',
+    utr:'utr', transactionId:'transactionId', paymentDateTime:'paymentDateTime',
+    receivedIn:'receivedIn', payerUpi:'payerUpi', debitedFrom:'debitedFrom',
+    recipient:'recipient', recipientUpi:'recipientUpi', notes:'notes'
+  };
+  let matched=0;
+  Object.entries(map).forEach(([key,id])=>{
+    const value=result?.[key];
+    if(value!==undefined && value!==null && String(value).trim()!==''){
+      if(['projectTotal','currentPayment','previousReceived'].includes(key)){
+        const amount=normalizeAmount(value);
+        if(amount>0){$(id).value=amount; matched++;}
+      }else if(key==='paymentMethod'){
+        const v=String(value).trim();
+        const option=[...$('paymentMethod').options].find(o=>o.text.toLowerCase()===v.toLowerCase());
+        $('paymentMethod').value=option?option.value:v;
+        matched++;
+      }else if(key==='invoiceDate'||key==='dueDate'){
+        const v=String(value).trim();
+        if(/^\d{4}-\d{2}-\d{2}$/.test(v)){$(id).value=v;matched++;}
+      }else if(key==='paymentDateTime'){
+        const v=String(value).trim();
+        if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)){$(id).value=v;matched++;}
+      }else{
+        $(id).value=String(value).trim(); matched++;
+      }
+    }
+  });
+  render();
+  return matched;
+}
+
+async function runAiScan(){
+  if(!selectedFiles.length)return;
+  $('aiScanBtn').disabled=true;
+  $('ocrBtn').disabled=true;
+  $('clearFilesBtn').disabled=true;
+  $('ocrStatus').textContent='AI is reading the uploaded payment files…';
+  try{
+    const images=[];
+    for(const file of selectedFiles){
+      if(file.type==='application/pdf' || /\.pdf$/i.test(file.name)){
+        images.push(...await pdfToAiImages(file));
+      }else if(file.type.startsWith('image/')){
+        images.push(await fileToCompressedImage(file));
+      }
+      if(images.length>=8)break;
+    }
+    if(!images.length)throw new Error('No readable images found');
+    const response=await fetch('/api/extract',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({images:images.slice(0,8)})
+    });
+    if(!response.ok){
+      const detail=await response.text().catch(()=> '');
+      throw new Error(detail||('AI endpoint returned '+response.status));
+    }
+    const result=await response.json();
+    const matched=applyAiFields(result.fields||result);
+    $('ocrStatus').textContent='AI scan complete — '+matched+' bill fields filled. Review every value before generating the bill.';
+    toast('AI filled '+matched+' bill fields');
+  }catch(e){
+    console.error(e);
+    $('ocrStatus').textContent='AI scan unavailable — Local OCR fallback is ready.';
+    toast('AI scan could not run. Use Local OCR Fallback.');
+  }finally{
+    $('aiScanBtn').disabled=!selectedFiles.length;
+    $('ocrBtn').disabled=!selectedFiles.length;
+    $('clearFilesBtn').disabled=false;
+  }
+}
+
+$('aiScanBtn').addEventListener('click',runAiScan);
+
 let selectedFiles=[];
 $('screenshotInput').addEventListener('change',e=>{
   selectedFiles=Array.from(e.target.files||[]);
