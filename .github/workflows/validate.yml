@@ -14,9 +14,10 @@ jobs:
       - name: Validate required files
         run: test -f index.html && test -f styles.css && test -f app.js
       - name: Validate HTML structure
-        run: python - <<'PY'
+        run: |
+          python - <<'PY'
           from pathlib import Path
-          html=Path('index.html').read_text()
+          html = Path('index.html').read_text()
           assert html.count('<article') == html.count('</article>')
           assert html.count('<script') == html.count('</script>')
           assert 'invoicePreview' in html
