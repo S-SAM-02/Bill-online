@@ -1,0 +1,25 @@
+name: Validate static bill app
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate JavaScript syntax
+        run: node --check app.js
+      - name: Validate required files
+        run: test -f index.html && test -f styles.css && test -f app.js
+      - name: Validate HTML structure
+        run: python - <<'PY'
+          from pathlib import Path
+          html=Path('index.html').read_text()
+          assert html.count('<article') == html.count('</article>')
+          assert html.count('<script') == html.count('</script>')
+          assert 'invoicePreview' in html
+          assert 'screenshotInput' in html
+          print('Static structure checks passed')
+          PY
