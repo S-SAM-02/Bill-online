@@ -32,7 +32,7 @@
     <label>Payer UPI ID<input id="payerUpi" /></label><label>Debited From Account<input id="debitedFrom" /></label>
     <label>Recipient / Paid To<input id="recipient" value="SANTHOSH S" /></label><label>Recipient UPI ID<input id="recipientUpi" value="santhosh.410@superyes" /></label>
   </div>
-  <div class="ocr-box"><div><strong>Automatic screenshot extraction</strong><p>Upload a payment screenshot. Browser OCR reads visible text and pre-fills matching fields. Review every value before generating the bill.</p></div><input id="screenshotInput" type="file" accept="image/*" /><button class="btn secondary" id="ocrBtn" disabled>Extract from Screenshot</button><span id="ocrStatus">No screenshot selected</span></div>
+  <div class="ocr-box"><div><strong>Automatic payment file extraction</strong><p>Upload <b>multiple photos/screenshots and/or PDF files</b>. The app processes every image and every PDF page, combines the OCR text, then updates the bill fields automatically. All extracted values stay editable so you can correct them before generating the bill.</p></div><input id="screenshotInput" type="file" accept="image/*,.pdf,application/pdf" multiple /><button class="btn secondary" id="ocrBtn" disabled>Extract &amp; Update Bill</button><button class="btn secondary" id="clearFilesBtn" type="button">Clear Files</button><span id="ocrStatus">No payment files selected</span></div>
   <div class="grid one"><label>Notes<textarea id="notes" rows="4">This is a payment received toward the project.
 Payment was received through UPI; sender and recipient details are recorded above.
 This invoice is computer generated and does not require a signature.</textarea></label></div>
@@ -60,6 +60,8 @@ This invoice is computer generated and does not require a signature.</textarea><
 </section>
 </main>
 <div class="toast" id="toast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>window.pdfjsLib &amp;&amp; (window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js");</script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="app.js"></script>
