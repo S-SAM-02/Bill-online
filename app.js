@@ -260,7 +260,7 @@ function parseOCR(text){
       let hh=Number(m[4]); const ap=(m[6]||'').toUpperCase();
       if(ap==='PM' && hh<12)hh+=12;
       if(ap==='AM' && hh===12)hh=0;
-      $('paymentDateTime').value=\`${y.toString().padStart(4,'0')}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${hh.toString().padStart(2,'0')}:${m[5]}\`;
+      $('paymentDateTime').value=`${y.toString().padStart(4,'0')}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${hh.toString().padStart(2,'0')}:${m[5]}`;
     }else{
       m=rawDate.match(/(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})\s+(\d{1,2}):(\d{2})\s*([AP]M)?/i);
       if(m){
@@ -269,7 +269,7 @@ function parseOCR(text){
         let hh=Number(m[4]); const ap=(m[6]||'').toUpperCase();
         if(ap==='PM' && hh<12)hh+=12;
         if(ap==='AM' && hh===12)hh=0;
-        if(mo>0)$('paymentDateTime').value=\`${m[3]}-${String(mo).padStart(2,'0')}-${m[1].padStart(2,'0')}T${String(hh).padStart(2,'0')}:${m[5]}\`;
+        if(mo>0)$('paymentDateTime').value=`${m[3]}-${String(mo).padStart(2,'0')}-${m[1].padStart(2,'0')}T${String(hh).padStart(2,'0')}:${m[5]}`;
       }
     }
   }
