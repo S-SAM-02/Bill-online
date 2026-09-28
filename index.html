@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#153b6d" />
+<title>SAM Company — Bill Generator</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="topbar no-print">
+  <div><div class="brand">SAM Company</div><div class="brand-sub">Web Design &amp; Development Services</div></div>
+  <div class="top-actions"><button class="btn secondary" id="loadDemoBtn">Load Example</button><button class="btn danger" id="clearBtn">Clear New Bill</button></div>
+</header>
+<main class="app-shell">
+<section class="control-panel no-print">
+  <div class="section-title"><div><span class="step">01</span><div><h2>Bill Details</h2><p>Create, edit and verify the payment information.</p></div></div><span class="status-pill" id="saveStatus">Auto-save ready</span></div>
+  <div class="grid two">
+    <label>Invoice Number<input id="invoiceNo" /></label><label>Invoice Date<input id="invoiceDate" type="date" /></label>
+    <label>Due Date<input id="dueDate" type="date" /></label><label>Client Name<input id="clientName" /></label>
+    <label>Client UPI ID<input id="clientUpi" /></label><label>Website / Project<input id="project" /></label>
+    <label>Service / Description<input id="service" /></label>
+    <label>Payment Method<select id="paymentMethod"><option>UPI / PhonePe</option><option>UPI</option><option>Bank Transfer</option><option>Cash</option><option>Card</option><option>Other</option></select></label>
+  </div>
+  <div class="section-title compact"><div><span class="step">02</span><div><h2>Payment &amp; Balance</h2><p>Enter the full project amount manually. Received and pending are calculated automatically.</p></div></div></div>
+  <div class="grid three"><label>Full Project Amount (₹)<input id="projectTotal" type="number" min="0" step="0.01" /></label><label>Current Payment Received (₹)<input id="currentPayment" type="number" min="0" step="0.01" /></label><label>Total Previously Received (₹)<input id="previousReceived" type="number" min="0" step="0.01" /></label></div>
+  <div class="money-cards"><div><span>Current payment</span><strong id="currentDisplay">₹0</strong></div><div><span>Total cleared</span><strong id="receivedDisplay">₹0</strong></div><div><span>Pending balance</span><strong id="pendingDisplay">₹0</strong></div><div><span>Status</span><strong id="statusDisplay">Pending</strong></div></div>
+  <div class="section-title compact"><div><span class="step">03</span><div><h2>Payment Reference</h2><p>These details can be extracted from a screenshot and corrected manually.</p></div></div></div>
+  <div class="grid two">
+    <label>UPI Reference / UTR<input id="utr" /></label><label>PhonePe Transaction ID<input id="transactionId" /></label>
+    <label>Payment Date &amp; Time<input id="paymentDateTime" type="datetime-local" /></label><label>Received In<input id="receivedIn" placeholder="Canara Bank •••• 6599" /></label>
+    <label>Payer UPI ID<input id="payerUpi" /></label><label>Debited From Account<input id="debitedFrom" /></label>
+    <label>Recipient / Paid To<input id="recipient" value="SANTHOSH S" /></label><label>Recipient UPI ID<input id="recipientUpi" value="santhosh.410@superyes" /></label>
+  </div>
+  <div class="ocr-box"><div><strong>Automatic screenshot extraction</strong><p>Upload a payment screenshot. Browser OCR reads visible text and pre-fills matching fields. Review every value before generating the bill.</p></div><input id="screenshotInput" type="file" accept="image/*" /><button class="btn secondary" id="ocrBtn" disabled>Extract from Screenshot</button><span id="ocrStatus">No screenshot selected</span></div>
+  <div class="grid one"><label>Notes<textarea id="notes" rows="4">This is a payment received toward the project.
+Payment was received through UPI; sender and recipient details are recorded above.
+This invoice is computer generated and does not require a signature.</textarea></label></div>
+  <div class="action-row"><button class="btn primary" id="generateBtn">Generate / Update Bill</button><button class="btn secondary" id="printBtn">Print PDF</button><button class="btn secondary" id="downloadBtn">Save PDF</button><button class="btn secondary" id="saveBtn">Save Data</button></div>
+  <p class="privacy-note">Data Saver: saved bills stay in this browser using local storage. No server or database is required. Clear New Bill removes the current draft from this browser.</p>
+</section>
+<section class="preview-wrap">
+  <div class="preview-heading no-print"><div><span>LIVE PREVIEW</span><h2>Invoice / Bill</h2></div><div id="verificationBadge" class="verification">Ready for verification</div></div>
+  <article class="invoice" id="invoicePreview">
+    <div class="invoice-head"><div><h1>SAM Company</h1><p>Web Design &amp; Development Services</p><div class="contact">☎ +91 8431758236 &nbsp;|&nbsp; ✉ rathasanthil194@gmail.com</div></div><div class="invoice-meta"><h2>INVOICE / BILL</h2><p>Invoice No. : <b data-out="invoiceNo"></b></p><p>Invoice Date : <b data-out="invoiceDate"></b></p><p>Due Date : <b data-out="dueDate"></b></p></div></div>
+    <div class="two-col-table">
+      <div><div class="bar">BILL TO</div><div class="cell-row"><b>Client Name</b><span data-out="clientName"></span></div><div class="cell-row"><b>UPI ID</b><span data-out="clientUpi"></span></div><div class="cell-row"><b>Website / Project</b><span data-out="project"></span></div><div class="cell-row"><b>Service</b><span data-out="service"></span></div></div>
+      <div><div class="bar">PAYMENT SUMMARY</div><div class="cell-row"><b>Payment Received From</b><span data-out="clientName"></span></div><div class="cell-row"><b>Amount Received</b><span class="amount" data-out="currentPayment"></span></div><div class="cell-row"><b>Payment Method</b><span data-out="paymentMethod"></span></div><div class="cell-row"><b>UPI Reference / UTR</b><span data-out="utr"></span></div><div class="cell-row"><b>PhonePe Transaction ID</b><span data-out="transactionId"></span></div><div class="cell-row"><b>Payment Date &amp; Time</b><span data-out="paymentDateTime"></span></div><div class="cell-row"><b>Received In</b><span data-out="receivedIn"></span></div></div>
+    </div>
+    <div class="bar description-bar">DESCRIPTION <span>AMOUNT (INR)</span></div>
+    <div class="description-table"><div><span>Payment Received – <span data-out="service"></span> (<span data-out="project"></span> Project)</span><b class="amount" data-out="currentPayment"></b></div><div class="blank"></div><div class="blank"></div><div class="total"><b>TOTAL AMOUNT RECEIVED</b><b class="amount" data-out="currentPayment"></b></div></div>
+    <div class="two-col-table payment-lower">
+      <div><div class="bar">PAYMENT DETAILS</div><div class="cell-row"><b>Payment Status</b><span class="green" data-out="status"></span></div><div class="cell-row"><b>Amount</b><span data-out="currentPaymentWords"></span></div><div class="cell-row"><b>Payment Method</b><span data-out="paymentMethod"></span></div><div class="cell-row"><b>PhonePe Transaction ID</b><span data-out="transactionId"></span></div><div class="cell-row"><b>UPI Reference / UTR</b><span data-out="utr"></span></div><div class="cell-row"><b>Payer Name</b><span data-out="clientName"></span></div><div class="cell-row"><b>Payer UPI ID</b><span data-out="payerUpi"></span></div><div class="cell-row"><b>Debited From</b><span data-out="debitedFrom"></span></div><div class="cell-row"><b>Received In</b><span data-out="receivedIn"></span></div><div class="cell-row"><b>Recipient / Paid To</b><span data-out="recipient"></span></div><div class="cell-row"><b>Recipient UPI ID</b><span data-out="recipientUpi"></span></div></div>
+      <div><div class="bar">SCAN / PAYMENT CONFIRMATION</div><div class="confirmation"><div class="check">✓</div><h3>Payment <span data-out="statusLower"></span></h3><strong data-out="currentPayment"></strong><p data-out="paymentDateTime"></p><p>UPI Reference: <span data-out="utr"></span></p></div></div>
+    </div>
+    <div class="balance-strip"><span>FULL PROJECT AMOUNT <b data-out="projectTotal"></b></span><span>TOTAL CLEARED <b data-out="totalReceived"></b></span><span>PENDING <b data-out="pending"></b></span></div>
+    <div class="two-col-table notes"><div><div class="bar">NOTES</div><div class="notes-content" id="notesOut"></div></div><div><div class="bar">THANK YOU!</div><div class="thank-content"><p>Thank you for your trust in SAM Company.</p><p>We look forward to delivering the best service for your project.</p><p><b>Santhosh S.</b><br/>Founder &amp; Web Developer<br/>SAM Company</p></div></div></div>
+    <footer class="invoice-footer">☎ +91 8431758236 <span>✉ rathasanthil194@gmail.com</span></footer>
+  </article>
+</section>
+</main>
+<div class="toast" id="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
