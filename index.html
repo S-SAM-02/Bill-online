@@ -10,7 +10,7 @@
 <body>
 <header class="topbar no-print">
   <div><div class="brand">SAM Company</div><div class="brand-sub">Web Design &amp; Development Services</div></div>
-  <div class="top-actions"><button class="btn secondary" id="loadDemoBtn">Load Example</button><button class="btn danger" id="clearBtn">Clear New Bill</button></div>
+  <div class="top-actions"><button class="btn danger" id="clearBtn">Clear Bill / New Bill</button></div>
 </header>
 <main class="app-shell">
 <section class="control-panel no-print">
@@ -20,7 +20,7 @@
     <label>Due Date<input id="dueDate" type="date" /></label><label>Client Name<input id="clientName" /></label>
     <label>Client UPI ID<input id="clientUpi" /></label><label>Website / Project<input id="project" /></label>
     <label>Service / Description<input id="service" /></label>
-    <label>Payment Method<select id="paymentMethod"><option>UPI / PhonePe</option><option>UPI</option><option>Bank Transfer</option><option>Cash</option><option>Card</option><option>Other</option></select></label>
+    <label>Payment Method<select id="paymentMethod"><option value="">Select manually</option><option>UPI / PhonePe</option><option>UPI</option><option>Bank Transfer</option><option>Cash</option><option>Card</option><option>Other</option></select></label>
   </div>
   <div class="section-title compact"><div><span class="step">02</span><div><h2>Payment &amp; Balance</h2><p>Enter the full project amount manually. Received and pending are calculated automatically.</p></div></div></div>
   <div class="grid three"><label>Full Project Amount (₹)<input id="projectTotal" type="number" min="0" step="0.01" /></label><label>Current Payment Received (₹)<input id="currentPayment" type="number" min="0" step="0.01" /></label><label>Total Previously Received (₹)<input id="previousReceived" type="number" min="0" step="0.01" /></label></div>
@@ -28,14 +28,12 @@
   <div class="section-title compact"><div><span class="step">03</span><div><h2>Payment Reference</h2><p>These details can be extracted from a screenshot and corrected manually.</p></div></div></div>
   <div class="grid two">
     <label>UPI Reference / UTR<input id="utr" /></label><label>PhonePe Transaction ID<input id="transactionId" /></label>
-    <label>Payment Date &amp; Time<input id="paymentDateTime" type="datetime-local" /></label><label>Received In<input id="receivedIn" placeholder="Canara Bank •••• 6599" /></label>
+    <label>Payment Date &amp; Time<input id="paymentDateTime" type="datetime-local" /></label><label>Received In<input id="receivedIn" /></label>
     <label>Payer UPI ID<input id="payerUpi" /></label><label>Debited From Account<input id="debitedFrom" /></label>
-    <label>Recipient / Paid To<input id="recipient" value="SANTHOSH S" /></label><label>Recipient UPI ID<input id="recipientUpi" value="santhosh.410@superyes" /></label>
+    <label>Recipient / Paid To<input id="recipient" /></label><label>Recipient UPI ID<input id="recipientUpi" /></label>
   </div>
   <div class="ocr-box"><div><strong>Automatic payment file extraction</strong><p>Upload <b>multiple photos/screenshots and/or PDF files</b>. The app processes every image and every PDF page, combines the OCR text, then updates the bill fields automatically. All extracted values stay editable so you can correct them before generating the bill.</p></div><input id="screenshotInput" type="file" accept="image/*,.pdf,application/pdf" multiple /><button class="btn secondary" id="ocrBtn" disabled>Extract &amp; Update Bill</button><button class="btn secondary" id="clearFilesBtn" type="button">Clear Files</button><span id="ocrStatus">No payment files selected</span></div>
-  <div class="grid one"><label>Notes<textarea id="notes" rows="4">This is a payment received toward the project.
-Payment was received through UPI; sender and recipient details are recorded above.
-This invoice is computer generated and does not require a signature.</textarea></label></div>
+  <div class="grid one"><label>Notes<textarea id="notes" rows="4"></textarea></label></div>
   <div class="action-row"><button class="btn primary" id="generateBtn">Generate / Update Bill</button><button class="btn secondary" id="printBtn">Print PDF</button><button class="btn secondary" id="downloadBtn">Save PDF</button><button class="btn secondary" id="saveBtn">Save Data</button></div>
   <p class="privacy-note">Data Saver: saved bills stay in this browser using local storage. No server or database is required. Clear New Bill removes the current draft from this browser.</p>
 </section>
