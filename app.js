@@ -189,38 +189,194 @@ async function pdf(){
   const opt={margin:0,filename:($('invoiceNo').value||'SAM-Invoice')+'.pdf',image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}};
   try{await html2pdf().set(opt).from(el).save();toast('PDF saved successfully');}catch(e){console.error(e);toast('PDF failed — use Print PDF');}
 }
-function parseOCR(text){
-  const t=text.replace(/\s+/g,' ').trim();
-  const pick=re=>{const m=t.match(re);return m?m[1].trim():'';};
-  const amount=pick(/(?:amount received|total amount received|payment received)[^₹0-9]{0,30}(?:₹|rs\.?|inr)?\s*([\d,]+)/i);
-  const utr=pick(/(?:upi reference|utr)\s*[:#-]?\s*([A-Z0-9]+)/i);
-  const txn=pick(/(?:phonepe transaction id|transaction id)\s*[:#-]?\s*([A-Z0-9]+)/i);
-  const upi=pick(/(?:payer upi id|upi id)\s*[:#-]?\s*([\w.-]+@[\w.-]+)/i);
-  const client=pick(/(?:payment received from|payer name|client name)\s*[:#-]?\s*([A-Za-z][A-Za-z .]+)/i);
-  const receivedIn=pick(/(?:received in)\s*[:#-]?\s*(.*?)(?=\s+(?:recipient|payer|payment|amount)\b|$)/i);
-  const paidTo=pick(/(?:recipient \/ paid to|recipient|paid to)\s*[:#-]?\s*([A-Za-z][A-Za-z .]+)/i);
-  if(amount)$('currentPayment').value=amount.replace(/,/g,'');
-  if(utr)$('utr').value=utr;
-  if(txn)$('transactionId').value=txn;
-  if(upi)$('payerUpi').value=upi;
-  if(client)$('clientName').value=client;
-  if(receivedIn)$('receivedIn').value=receivedIn;
-  if(paidTo)$('recipient').value=paidTo;
-  render();
+function cleanOCRText(text){
+  return String(text||'')
+    .replace(/\r/g,'')
+    .replace(/[|]/g,'I')
+    .replace(/[“”]/g,'"')
+    .replace(/[‘’]/g,"'")
+    .replace(/\u00a0/g,' ')
+    .replace(/[ \t]+/g,' ')
+    .trim();
 }
-let selectedFile=null;
-$('screenshotInput').addEventListener('change',e=>{selectedFile=e.target.files[0];$('ocrBtn').disabled=!selectedFile;$('ocrStatus').textContent=selectedFile?selectedFile.name:'No screenshot selected';});
+
+function firstMatch(text, patterns){
+  for(const re of patterns){
+    const m=text.match(re);
+    if(m && m[1]) return m[1].trim();
+  }
+  return '';
+}
+
+function normalizeAmount(value){
+  const n=String(value||'').replace(/[₹Rs.INR\s,]/gi,'').replace(/[^0-9.]/g,'');
+  const v=Number(n);
+  return Number.isFinite(v) ? v : 0;
+}
+
+function parseOCR(text){
+  const raw=cleanOCRText(text);
+  const lines=raw.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  const flat=lines.join(' ');
+
+  const amountText=firstMatch(flat,[
+    /(?:amount\s*(?:received|paid|sent)|payment\s*(?:received|amount)|total\s*amount\s*received|paid\s*amount|transaction\s*amount)\s*[:\-]?\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i,
+    /(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d{1,2})?)/i
+  ]);
+  const utr=firstMatch(flat,[
+    /(?:upi\s*reference|upi\s*ref(?:erence)?|utr|rrn|reference\s*(?:no|number)?)\s*[:#\-]?\s*([A-Z0-9][A-Z0-9\-]{5,})/i
+  ]);
+  const txn=firstMatch(flat,[
+    /(?:phonepe\s*)?(?:transaction\s*(?:id|number)|txn\s*(?:id|no|number))\s*[:#\-]?\s*([A-Z0-9][A-Z0-9\-]{8,})/i
+  ]);
+  const upis=[...flat.matchAll(/\b[A-Z0-9][A-Z0-9._-]{1,}@[A-Z0-9._-]{2,}\b/gi)].map(m=>m[0]);
+  const payerUpi=firstMatch(flat,[
+    /(?:payer|sender|debited\s*(?:from)?|from)\s*(?:upi\s*)?(?:id)?\s*[:#\-]?\s*([A-Z0-9][A-Z0-9._-]{1,}@[A-Z0-9._-]{2,})/i
+  ]) || upis[0] || '';
+  const recipientUpi=firstMatch(flat,[
+    /(?:recipient|receiver|paid\s*to|credited\s*to)\s*(?:upi\s*)?(?:id)?\s*[:#\-]?\s*([A-Z0-9][A-Z0-9._-]{1,}@[A-Z0-9._-]{2,})/i
+  ]) || upis[1] || '';
+
+  const client=firstMatch(flat,[
+    /(?:payment\s*received\s*from|received\s*from|payer\s*name|sender\s*name|client\s*name)\s*[:#\-]?\s*([A-Za-z][A-Za-z .'-]{2,})/i
+  ]);
+  const paidTo=firstMatch(flat,[
+    /(?:recipient\s*\/?\s*paid\s*to|recipient\s*name|receiver\s*name|paid\s*to|credited\s*to)\s*[:#\-]?\s*([A-Za-z][A-Za-z .'-]{2,})/i
+  ]);
+  const receivedIn=firstMatch(flat,[
+    /(?:received\s*in|credited\s*in|credited\s*to\s*(?:bank|account)?|bank\s*account)\s*[:#\-]?\s*([A-Za-z0-9][A-Za-z0-9 .•*#()_-]{2,})/i
+  ]);
+  const debitedFrom=firstMatch(flat,[
+    /(?:debited\s*from|debit(?:ed)?\s*account|paid\s*from)\s*[:#\-]?\s*([A-Za-z0-9][A-Za-z0-9 .•*#()_-]{2,})/i
+  ]);
+  const dateTime=firstMatch(flat,[
+    /(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\s+(?:at\s+)?\d{1,2}:\d{2}(?:\s*[AP]M)?)/i,
+    /(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}\s+(?:at\s+)?\d{1,2}:\d{2}(?:\s*[AP]M)?)/i
+  ]);
+
+  if(amountText) $('currentPayment').value=normalizeAmount(amountText);
+  if(utr) $('utr').value=utr.replace(/[^A-Za-z0-9-]/g,'');
+  if(txn) $('transactionId').value=txn.replace(/[^A-Za-z0-9-]/g,'');
+  if(payerUpi) $('payerUpi').value=payerUpi;
+  if(recipientUpi) $('recipientUpi').value=recipientUpi;
+  if(client) $('clientName').value=client.replace(/\s{2,}/g,' ').trim();
+  if(paidTo) $('recipient').value=paidTo.replace(/\s{2,}/g,' ').trim();
+  if(receivedIn) $('receivedIn').value=receivedIn.trim();
+  if(debitedFrom) $('debitedFrom').value=debitedFrom.trim();
+
+  if(dateTime){
+    const normalized=dateTime.replace(/\bat\b/i,' ').replace(/\s+/g,' ').trim();
+    const m=normalized.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\s+(\d{1,2}):(\d{2})\s*([AP]M)?/i);
+    if(m){
+      let y=Number(m[3]); if(y<100)y+=2000;
+      let hh=Number(m[4]); const ap=(m[6]||'').toUpperCase();
+      if(ap==='PM' && hh<12)hh+=12;
+      if(ap==='AM' && hh===12)hh=0;
+      $('paymentDateTime').value=\`${y.toString().padStart(4,'0')}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${hh.toString().padStart(2,'0')}:${m[5]}\`;
+    }
+  }
+
+  render();
+  return {
+    amount:amountText ? normalizeAmount(amountText) : 0,
+    utr, txn, payerUpi, recipientUpi, client, paidTo, receivedIn, debitedFrom, dateTime,
+    matched:[amountText,utr,txn,payerUpi,recipientUpi,client,paidTo,receivedIn,debitedFrom,dateTime].filter(Boolean).length
+  };
+}
+
+async function ocrImage(file, worker, progressLabel){
+  const result=await worker.recognize(file);
+  $('ocrStatus').textContent=progressLabel;
+  return result.data.text || '';
+}
+
+async function ocrPdf(file, worker, progressLabel){
+  if(typeof pdfjsLib==='undefined') throw new Error('PDF engine unavailable');
+  const data=new Uint8Array(await file.arrayBuffer());
+  const pdf=await pdfjsLib.getDocument({data}).promise;
+  const chunks=[];
+  const maxPages=Math.min(pdf.numPages,20);
+  for(let pageNo=1;pageNo<=maxPages;pageNo++){
+    $('ocrStatus').textContent=\`${progressLabel} — PDF page ${pageNo}/${maxPages}\`;
+    const page=await pdf.getPage(pageNo);
+    const textContent=await page.getTextContent();
+    const directText=textContent.items.map(item=>item.str||'').join(' ').trim();
+    if(directText.length>=40){
+      chunks.push(directText);
+      continue;
+    }
+    const viewport=page.getViewport({scale:2});
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.floor(viewport.width);
+    canvas.height=Math.floor(viewport.height);
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    await page.render({canvasContext:ctx,viewport}).promise;
+    const result=await worker.recognize(canvas);
+    chunks.push(result.data.text||'');
+    canvas.width=1; canvas.height=1;
+  }
+  if(pdf.numPages>20) chunks.push(\`[Only first 20 pages processed from ${file.name}]\`);
+  return chunks.join('\n');
+}
+
+let selectedFiles=[];
+$('screenshotInput').addEventListener('change',e=>{
+  selectedFiles=Array.from(e.target.files||[]);
+  $('ocrBtn').disabled=!selectedFiles.length;
+  $('ocrStatus').textContent=selectedFiles.length
+    ? \`${selectedFiles.length} file(s) selected — images and PDFs supported\`
+    : 'No payment files selected';
+});
+
+$('clearFilesBtn').addEventListener('click',()=>{
+  selectedFiles=[];
+  $('screenshotInput').value='';
+  $('ocrBtn').disabled=true;
+  $('ocrStatus').textContent='No payment files selected';
+});
+
 $('ocrBtn').addEventListener('click',async()=>{
-  if(!selectedFile)return;
-  $('ocrBtn').disabled=true; $('ocrStatus').textContent='Loading OCR engine…';
+  if(!selectedFiles.length)return;
+  $('ocrBtn').disabled=true;
+  $('clearFilesBtn').disabled=true;
+  let worker=null;
   try{
     if(typeof Tesseract==='undefined')throw new Error('OCR library unavailable');
-    const r=await Tesseract.recognize(selectedFile,'eng',{logger:m=>{if(m.status==='recognizing text')$('ocrStatus').textContent=`OCR ${Math.round(m.progress*100)}%`;else if(m.status==='loading language traineddata')$('ocrStatus').textContent='Loading OCR language…';}});
-    parseOCR(r.data.text); $('ocrStatus').textContent='Extracted — review every value';
-    toast('Screenshot values extracted');
-  }catch(e){console.error(e);$('ocrStatus').textContent='OCR failed — enter values manually';toast('OCR failed — manual entry is available');}
-  finally{$('ocrBtn').disabled=false;}
+    worker=await Tesseract.createWorker('eng',1,{
+      logger:m=>{
+        if(m.status==='recognizing text' && typeof m.progress==='number'){
+          $('ocrStatus').textContent=\`Reading payment file… ${Math.round(m.progress*100)}%\`;
+        }
+      }
+    });
+    await worker.setParameters({preserve_interword_spaces:'1'});
+    const allText=[];
+    let fileIndex=0;
+    for(const file of selectedFiles){
+      fileIndex++;
+      const label=\`File ${fileIndex}/${selectedFiles.length}: ${file.name}\`;
+      if(file.type==='application/pdf' || /\.pdf$/i.test(file.name)){
+        allText.push(await ocrPdf(file,worker,label));
+      }else if(file.type.startsWith('image/')){
+        allText.push(await ocrImage(file,worker,label));
+      }
+    }
+    const combined=allText.filter(Boolean).join('\n\n');
+    if(!combined.trim())throw new Error('No readable text found in the uploaded files');
+    const result=parseOCR(combined);
+    $('ocrStatus').textContent=\`${selectedFiles.length} file(s) processed — ${result.matched} bill fields updated. Review and edit them before generating.\`;
+    toast(result.matched ? 'Uploaded payment files updated the bill' : 'Files processed, but no matching fields were found');
+  }catch(e){
+    console.error(e);
+    $('ocrStatus').textContent='Extraction failed — check the files and try again';
+    toast('File extraction failed — manual entry is still available');
+  }finally{
+    if(worker)await worker.terminate();
+    $('ocrBtn').disabled=!selectedFiles.length;
+    $('clearFilesBtn').disabled=false;
+  }
 });
+
 fields.forEach(f=>$(f).addEventListener('input',render));
 $('generateBtn').addEventListener('click',()=>{if(validateBill()){render();toast('Bill generated — review the A4 preview before saving');}});
 $('saveBtn').addEventListener('click',saveData);
